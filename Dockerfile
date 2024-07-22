@@ -7,7 +7,7 @@ RUN npm install -g @nestjs/cli
 
 COPY package*.json ./
 
-RUN npm install --production
+RUN npm install
 
 COPY . .
 
@@ -21,7 +21,7 @@ WORKDIR /app
 ENV SERVER_PORT=80
 
 COPY --from=builder /app/package*.json ./
-RUN npm install --production
+RUN npm install
 
 COPY --from=builder /app/dist ./dist
 

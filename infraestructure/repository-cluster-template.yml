@@ -1,0 +1,39 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Plantilla para crear un repositorio ECR y un cluster ECS
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: Nombre del proyecto
+    AllowedPattern: "^[a-z0-9-_.]+$"
+    ConstraintDescription: "El nombre del proyecto debe estar en minúsculas y puede contener letras, números, guiones, puntos y guiones bajos."
+
+Resources:
+  Repository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub "${ProjectName}-${AWS::Region}-rp"
+
+  Cluster: 
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub "${ProjectName}-${AWS::Region}-c"
+
+Outputs:
+  Repository:
+    Description: Repositorio de imágenes Docker 
+    Value: !Ref Repository
+    Export:
+      Name: !Sub "${ProjectName}-${AWS::Region}-rp"
+      
+  RepositoryUri:
+    Description: URI del repositorio de imágenes Docker 
+    Value: !GetAtt Repository.RepositoryUri
+    Export:
+      Name: !Sub "${ProjectName}-${AWS::Region}-rp-uri"
+
+  Cluster:
+    Description: Cluster para las imágenes Docker 
+    Value: !Ref Cluster
+    Export:
+      Name: !Sub "${ProjectName}-${AWS::Region}-c"

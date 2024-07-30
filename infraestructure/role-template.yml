@@ -1,0 +1,165 @@
+Parameters:
+  ProjectName:
+    Type: String
+    Description: Nombre del stack de recursos que se va crear
+
+Resources:
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+        - arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess
+        - arn:aws:iam::aws:policy/SecretsManagerReadWrite
+
+  CodePipelineServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
+  CodeBuildServiceRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      RoleName:
+        Fn::Sub: CodeBuildRole-${ProjectName}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "codebuild.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: /service-role/
+      Policies:
+        -
+          PolicyName: "CodeBuildNestedCFNAccessPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Action:
+                  - "cloudformation:Get*"
+                  - "cloudformation:Describe*"
+                  - "cloudformation:List*"
+                Resource:
+                  - '*'
+              -
+                Effect: "Allow"
+                Action:
+                  - "codecommit:ListBranches"
+                  - "codecommit:ListRepositories"
+                  - "codecommit:BatchGetRepositories"
+                  - "codecommit:Get*"
+                  - "codecommit:GitPull"
+                Resource:
+                  - '*'
+              -
+                Effect: "Allow"
+                Action:
+                  - "ec2:Describe*"
+                  - "cloudformation:ValidateTemplate"
+                  - "elasticloadbalancing:Describe*"
+                  - "autoscaling:Describe*"
+                  - "iam:Get*"
+                  - "iam:List*"
+                  - "logs:Describe*"
+                  - "logs:Get*"
+                  - "tag:Get*"
+                Resource:
+                  - "*"
+              -
+                Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource:
+                  - '*'
+              -
+                Effect: "Allow"
+                Action:
+                  - "s3:PutObject"
+                  - "s3:GetObject"
+                  - "s3:GetObjectVersion"
+                  - "s3:ListBucket"
+                Resource:
+                  - '*'
+              -
+                Effect: "Allow"
+                Action:
+                  - "ecr:*"
+                Resource:
+                  - '*'
+  AutoScalingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-AutoScalingRole" 
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceAutoscaleRole'
+
+Outputs:
+  TaskRoleId:
+    Description: Rol para crear tareas 
+    Value: !GetAtt TaskRole.Arn
+    Export:
+      Name: !Sub "${ProjectName}-${AWS::Region}-tr-id-arn"
+
+  TaskExecutionRoleId:
+    Description: Rol para ejecutar tareas 
+    Value: !GetAtt TaskExecutionRole.Arn
+    Export:
+      Name: !Sub "${ProjectName}-${AWS::Region}-ter-id-arn"
+
+  CodePipelineServiceRoleId:
+    Description: Rol para crear un pipeline 
+    Value: !GetAtt CodePipelineServiceRole.Arn
+    Export:
+      Name: !Sub "${ProjectName}-${AWS::Region}-cpsr-id-arn"
+
+  CodeBuildServiceRoleId:
+    Description: Rol para construir una aplicacion 
+    Value: !GetAtt CodeBuildServiceRole.Arn
+    Export:
+      Name: !Sub "${ProjectName}-${AWS::Region}-cbsr-id-arn"
+
+  AutoScalingRoleId:
+    Description: Rol para construir una aplicacion 
+    Value: !GetAtt AutoScalingRole.Arn
+    Export:
+      Name: !Sub "${ProjectName}-${AWS::Region}-aus-id-arn"

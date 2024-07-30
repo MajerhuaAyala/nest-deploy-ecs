@@ -1,0 +1,128 @@
+Parameters:
+  ProjectName:
+    Type: String
+    Description: Nombre del proyecto 
+  GitHubOwner:
+    Type: String
+    Description: GitHub repository owner
+  GitHubRepo:
+    Type: String
+    Description: GitHub repository name
+  GitHubBranch:
+    Type: String
+    Description: GitHub branch name
+  GitHubOAuthToken:
+    Type: String
+    Description: Github token
+
+Resources:
+  ArtifactStoreBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${ProjectName}-artifacts-${AWS::AccountId}
+      VersioningConfiguration:
+        Status: Enabled
+
+  CodePipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      RoleArn: 
+        Fn::ImportValue: !Sub "${ProjectName}-${AWS::Region}-cpsr-id-arn"
+      ArtifactStore:
+        Type: S3
+        Location: !Ref ArtifactStoreBucket
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: SourceAction
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Provider: GitHub
+                Version: '1'
+              Configuration:
+                Owner: !Ref GitHubOwner
+                Repo: !Ref GitHubRepo
+                Branch: !Ref GitHubBranch
+                OAuthToken: !Ref GitHubOAuthToken
+                PollForSourceChanges: false
+              OutputArtifacts:
+                - Name: SourceOutput
+              RunOrder: 1
+        - Name: Build
+          Actions:
+            - Name: BuildAction
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: BuildOutput
+              Configuration:
+                ProjectName: !Ref CodeBuildProject
+                EnvironmentVariables:
+                  Fn::Sub:
+                    - '[
+                      {"name":"REPO_DOMAIN","value":"${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com","type":"PLAINTEXT"},
+                      {"name":"REPOSITORY_URI","value":"${RepoUri}","type":"PLAINTEXT"},
+                      {"name":"REGION","value":"${AWS::Region}","type":"PLAINTEXT"},
+                      {"name":"NAME_REPOSITORY","value":"${ContainerDefinitionsName}","type":"PLAINTEXT"}
+                    ]'
+                    - RepoUri: 
+                        Fn::ImportValue: !Sub "${ProjectName}-${AWS::Region}-rp-uri"
+                      ContainerDefinitionsName:
+                        Fn::ImportValue: !Sub "${ProjectName}-${AWS::Region}-cdfn"
+                
+              RunOrder: 1
+        - Name: Deploy
+          Actions:
+            - Name: DeployAction
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: ECS
+                Version: '1'
+              InputArtifacts:
+                - Name: BuildOutput
+              Configuration:
+                ClusterName: 
+                  Fn::ImportValue: !Sub "${ProjectName}-${AWS::Region}-c"
+                ServiceName: 
+                  Fn::ImportValue: !Sub "${ProjectName}-${AWS::Region}-sn"
+              RunOrder: 1
+
+  CodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub "${ProjectName}-${AWS::Region}-CB"
+      ServiceRole: 
+        Fn::ImportValue: !Sub "${ProjectName}-${AWS::Region}-cbsr-id-arn"
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
+      Source:
+        Type: CODEPIPELINE
+      TimeoutInMinutes: 10
+
+  GithubWebhook:
+    Type: AWS::CodePipeline::Webhook
+    Properties:
+      Authentication: GITHUB_HMAC
+      AuthenticationConfiguration:
+        SecretToken: !Ref GitHubOAuthToken
+      Filters:
+        - JsonPath: "$.ref"
+          MatchEquals: refs/heads/{GitHubBranch}
+      TargetPipeline: !Ref CodePipeline
+      TargetAction: SourceAction
+      Name: !Sub "${ProjectName}-${AWS::Region}-GHWH"
+      TargetPipelineVersion: !GetAtt CodePipeline.Version
+      RegisterWithThirdParty: true
+
+  

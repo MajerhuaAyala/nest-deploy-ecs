@@ -1,0 +1,22 @@
+[
+    {
+        "ParameterKey": "ProjectName",
+        "ParameterValue": "nest-test"
+    },
+    {
+        "ParameterKey": "ContainerCpu",
+        "ParameterValue": "256"
+    },
+    {
+        "ParameterKey": "ContainerMemory",
+        "ParameterValue": "512"
+    },
+    {
+        "ParameterKey": "ContainerPort",
+        "ParameterValue": "80"
+    },
+    {
+        "ParameterKey": "DesiredCount",
+        "ParameterValue": "1"
+    }
+]

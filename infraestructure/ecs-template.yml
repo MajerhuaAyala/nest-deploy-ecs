@@ -1,0 +1,213 @@
+Parameters:
+  ProjectName:
+    Type: String
+    Description: Nombre del proyecto 
+  ContainerCpu:
+    Type: Number
+    Description: Capacidad de Cpu del contenedor 
+  ContainerMemory:
+    Type: Number
+    Description: Memoria del contenedor 
+  ContainerPort:
+    Type: Number
+    Description: Numero de puerto de contenedor expuesto 
+  DesiredCount:
+    Type: Number
+    Description: Numero de contenedores que se desea que siempre este activo
+  AutoScalingTargetValue:
+    Type: Number
+    Default: 50
+  MinContainers:
+    Type: Number
+    Default: 2
+  # for autoscaling
+  MaxContainers:
+    Type: Number
+    Default: 10
+  
+Resources:
+  TaskDefinition:
+    Type: 'AWS::ECS::TaskDefinition'
+    DependsOn: LogGroup
+    Properties:
+      Family: !Sub "${ProjectName}-${AWS::Region}-TD"
+      Cpu: !Ref ContainerCpu
+      Memory: !Ref ContainerMemory
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: 
+        Fn::ImportValue: !Sub "${ProjectName}-${AWS::Region}-ter-id-arn"
+      TaskRoleArn:
+        Fn::ImportValue: !Sub "${ProjectName}-${AWS::Region}-tr-id-arn"
+      ContainerDefinitions:
+        - Name: !Sub "${ProjectName}-${AWS::Region}-CD"
+          Cpu: !Ref ContainerCpu
+          Memory: !Ref ContainerMemory
+          Image: 
+            Fn::Join:
+              - ""
+              - - Fn::ImportValue: !Sub "${ProjectName}-${AWS::Region}-rp-uri"
+                - ":latest"
+          PortMappings:
+            - ContainerPort: !Ref ContainerPort
+              HostPort: !Ref ContainerPort
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              mode: non-blocking
+              max-buffer-size: 25m
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: !Sub "${ProjectName}-${AWS::Region}-LOG"
+
+  Service:
+    Type: AWS::ECS::Service
+    DependsOn: PublicLoadBalancerListener
+    Properties:
+      ServiceName: !Sub "${ProjectName}-${AWS::Region}-PLB"
+      Cluster:
+        Fn::ImportValue: !Sub "${ProjectName}-${AWS::Region}-c"
+      # PlacementStrategies:
+      #   - Field: 'attribute:ecs.availability-zone'
+      #     Type: spread
+      #   - Field: cpu
+      #     Type: binpack
+      # CapacityProviderStrategy:
+      #   - Base: 0
+      #     CapacityProvider: !Ref CapacityProvider
+      #     Weight: 1
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref ServiceSecurityGroup
+          Subnets: 
+            - Fn::ImportValue: !Sub "${ProjectName}-${AWS::Region}-ps1-id"
+            - Fn::ImportValue: !Sub "${ProjectName}-${AWS::Region}-ps2-id"
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 75
+      DesiredCount: !Ref DesiredCount
+      TaskDefinition: !Ref TaskDefinition
+      LaunchType: FARGATE
+      LoadBalancers:
+        - ContainerName: !Sub "${ProjectName}-${AWS::Region}-CD"
+          ContainerPort: !Ref ContainerPort
+          TargetGroupArn: !Ref ServiceTargetGroup
+
+  ServiceSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Security group for service
+      VpcId: 
+        Fn::ImportValue: !Sub "${ProjectName}-${AWS::Region}-vpc-id"
+
+  ServiceTargetGroup:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      HealthCheckIntervalSeconds: 6
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      TargetType: ip
+      Port: !Ref ContainerPort
+      Protocol: HTTP
+      UnhealthyThresholdCount: 10
+      VpcId: 
+        Fn::ImportValue: !Sub "${ProjectName}-${AWS::Region}-vpc-id"
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 60
+
+  PublicLoadBalancerSG:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Access to the public facing load balancer
+      VpcId: 
+        Fn::ImportValue: !Sub "${ProjectName}-${AWS::Region}-vpc-id"
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: -1
+
+  PublicLoadBalancer:
+    Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+    Properties:
+      Scheme: internet-facing
+      LoadBalancerAttributes:
+        - Key: idle_timeout.timeout_seconds
+          Value: '30'
+      Subnets:
+        - Fn::ImportValue: !Sub "${ProjectName}-${AWS::Region}-ps1-id"
+        - Fn::ImportValue: !Sub "${ProjectName}-${AWS::Region}-ps2-id"
+      SecurityGroups:
+        - !Ref PublicLoadBalancerSG
+
+  PublicLoadBalancerListener:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - Type: forward
+          ForwardConfig:
+            TargetGroups:
+              - TargetGroupArn: !Ref ServiceTargetGroup
+                Weight: 100
+      LoadBalancerArn: !Ref PublicLoadBalancer
+      Port: !Ref ContainerPort
+      Protocol: HTTP
+
+  ServiceIngressfromLoadBalancer:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      Description: Ingress from the public ALB
+      GroupId: !Ref ServiceSecurityGroup
+      IpProtocol: -1
+      SourceSecurityGroupId: !Ref PublicLoadBalancerSG
+
+  LogGroup:
+    Type: 'AWS::Logs::LogGroup'
+
+  AutoScalingTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MinCapacity: !Ref MinContainers
+      MaxCapacity: !Ref MaxContainers
+      ResourceId: 
+        Fn::Join:
+          - "/"
+          - - "service"
+            - Fn::ImportValue: !Sub "${ProjectName}-${AWS::Region}-c"
+            - !GetAtt Service.Name
+
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+      RoleARN:
+        Fn::ImportValue: !Sub "${ProjectName}-${AWS::Region}-aus-id-arn"
+
+  AutoScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub "${ProjectName}-${AWS::Region}-ASP"
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref AutoScalingTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        ScaleInCooldown: 10
+        ScaleOutCooldown: 10
+        # Keep things at or lower than 50% CPU utilization, for example
+        TargetValue: !Ref AutoScalingTargetValue
+
+Outputs:
+  ServiceName:
+    Description: Nombre del servicio
+    Value: !Ref Service
+    Export:
+      Name: !Sub "${ProjectName}-${AWS::Region}-sn"
+
+  ContainerDefinitionsName:
+    Description: Nombre del servicio
+    Value: !Sub "${ProjectName}-${AWS::Region}-CD"
+    Export:
+      Name: !Sub "${ProjectName}-${AWS::Region}-cdfn"

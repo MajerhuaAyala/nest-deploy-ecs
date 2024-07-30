@@ -1,0 +1,22 @@
+[
+    {
+        "ParameterKey": "ProjectName",
+        "ParameterValue": "nest-test"
+    },
+    {
+        "ParameterKey": "GitHubOwner",
+        "ParameterValue": "MajerhuaAyala"
+    },
+    {
+        "ParameterKey": "GitHubRepo",
+        "ParameterValue": "nest-deploy-ecs"
+    },
+    {
+        "ParameterKey": "GitHubBranch",
+        "ParameterValue": "main"
+    },
+    {
+        "ParameterKey": "GitHubOAuthToken",
+        "ParameterValue": ""
+    }
+]

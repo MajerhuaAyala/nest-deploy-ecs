@@ -1,6 +1,6 @@
 docker build -t hello-nest .  
 
-docker run -p 80:80 hello-nest
+docker run -p 80:80 portal
 
 
 aws cloudformation create-stack --stack-name NEST-TEST-VPC --template-body file://create-vpc-template.yml --parameters file://create-vpc-template.json --capabilities CAPABILITY_NAMED_IAM --region us-east-2

@@ -1,24 +1,24 @@
 import { DataSource } from 'typeorm';
-import * as process from 'node:process';
+import { ConfigService } from '@nestjs/config';
 
 export const databaseProvider = [
   {
     provide: 'DATA_SOURCE',
-    useFactory: async () => {
+    useFactory: async (configService: ConfigService) => {
       const dataSource = new DataSource({
         type: 'mysql',
-        host: process.env.DATABASE_HOST,
-        port: Number(process.env.DATABASE_PORT),
-        username: process.env.DATABASE_USERNAME,
-        password: process.env.DATABASE_PASSWORD,
-        database: process.env.DATABASE_NAME,
+        host: configService.get<string>('DATABASE_HOST'),
+        port: configService.get<number>('DATABASE_PORT'),
+        username: configService.get<string>('DATABASE_USERNAME'),
+        password: configService.get<string>('DATABASE_PASSWORD'),
+        database: configService.get<string>('DATABASE_NAME'),
         entities: [
           __dirname + '/../**/*.entity{.ts,.js}',
         ],
         synchronize: false,
       });
-
       return dataSource.initialize();
     },
+    inject: [ConfigService],
   },
 ];

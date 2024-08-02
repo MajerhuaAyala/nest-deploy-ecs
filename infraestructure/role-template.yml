@@ -20,6 +20,7 @@ Resources:
     Properties:
       Path: /
       AssumeRolePolicyDocument:
+        Version: '2012-10-17'
         Statement:
           - Action: sts:AssumeRole
             Effect: Allow
@@ -29,6 +30,17 @@ Resources:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
         - arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess
         - arn:aws:iam::aws:policy/SecretsManagerReadWrite
+      Policies:
+        - PolicyName: S3EnvFileAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetBucketLocation
+                Resource:
+                  - arn:aws:s3:::nest-test-env/.env
 
   CodePipelineServiceRole:
     Type: AWS::IAM::Role

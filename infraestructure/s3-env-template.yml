@@ -1,0 +1,27 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Template para crear un bucket S3 y un objeto para el handler Lambda'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: Nombre del stack de recursos que se va crear
+
+Resources:
+  LambdaCodeBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${ProjectName}-env'
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+Outputs:
+  LambdaCodeBucketName:
+    Description: 'Nombre del bucket S3 que contiene el código Lambda'
+    Value: !Ref LambdaCodeBucket
+    Export:
+      Name: !Sub '${ProjectName}-LambdaCodeBucketName'

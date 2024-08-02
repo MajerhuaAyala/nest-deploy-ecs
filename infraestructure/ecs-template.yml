@@ -49,6 +49,9 @@ Resources:
               - ""
               - - Fn::ImportValue: !Sub "${ProjectName}-${AWS::Region}-rp-uri"
                 - ":latest"
+          EnvironmentFiles:
+            - Value: arn:aws:s3:::nest-test-env/.env
+              Type: s3
           PortMappings:
             - ContainerPort: !Ref ContainerPort
               HostPort: !Ref ContainerPort

@@ -14,3 +14,7 @@ aws cloudformation create-stack --stack-name NEST-TEST-RC --template-body file:/
 aws cloudformation create-stack --stack-name NEST-TEST-PLN --template-body file://pipelene-template.yml --parameters file://pipeline-template.json --capabilities CAPABILITY_NAMED_IAM --region us-east-2
 
 aws cloudformation create-stack --stack-name NEST-TEST-ECS --template-body file://ecs-template.yml --parameters file://ecs-template.json --capabilities CAPABILITY_NAMED_IAM --region us-east-2
+
+aws cloudformation create-stack --stack-name NEST-TEST-EN --template-body file://s3-env-template.yml --parameters file://s3-env-template.json --capabilities CAPABILITY_NAMED_IAM --region us-east-2
+
+aws cloudformation create-stack --stack-name NEST-TEST-DB --template-body file://database-template.yml  --capabilities CAPABILITY_NAMED_IAM --region us-east-2
